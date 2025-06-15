@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM-Powered Flashcard Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #2e5704 0%, #3b6f05 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.95;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .input-section, .flashcards-section {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title {
+            font-size: 1.6rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #76bb6f;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #508056;
+        }
+
+        select, textarea, input[type="file"] {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: border-color 0.3s ease;
+            background-color: #f7fafc;
+        }
+
+        select:focus, textarea:focus, input[type="file"]:focus {
+            outline: none;
+            border-color: #2e5704;
+            background-color: #edf2f7;
+        }
+
+        textarea {
+            min-height: 160px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .api-key-input {
+            position: relative;
+        }
+
+        .api-key-input input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            types: password;
+        }
+
+        .generate-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #2e5704 0%, #3b6f05 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #325e06 0%, #569e0a 100%);
+        }
+
+        .generate-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #274d02;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3a6e05;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .flashcards-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .flashcard {
+            min-width: 260px;
+            min-height: 180px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(102,126,234,0.08);
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: box-shadow 0.2s, transform 0.2s;
+            overflow: hidden;
+        }
+
+        .flashcard .flashcard-inner { height: 100%; }
+        .section-cards { display: flex; flex-wrap: wrap; gap: 18px; }
+        .section-header { margin-bottom: 8px; }
+
+        .flashcard:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+
+        .flashcard-front, .flashcard-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transition: transform 0.6s ease;
+        }
+
+        .flashcard-back {
+            transform: rotateY(180deg);
+            background: linear-gradient(to bottom, #f0f4f8, #e2e8f0);
+        }
+
+        .flashcard-header {
+            background: linear-gradient(to right, #284d04, #3b6f05);
+            color: white;
+            padding: 12px 16px;
+            font-weight: 600;
+            font-size: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            box-shadow: inset 0 -1px 0 rgba(255,255,255,0.1);
+        }
+
+        .flashcard-back .flashcard-header {
+            background: linear-gradient(to right, #38a169, #48bb78);
+        }
+
+        .difficulty-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            color: white;
+            text-transform: capitalize;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .difficulty-easy { background: #48bb78; }
+        .difficulty-medium { background: #ed8936; }
+        .difficulty-hard { background: #e53e3e; }
+
+        .flashcard-content {
+            padding: 20px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: left;
+            line-height: 1.6;
+            background-color: #ffffff;
+        }
+
+        .question {
+            font-weight: 700;
+            color: #577446;
+            font-size: 1.15rem;
+            margin-bottom: 12px;
+        }
+
+        .answer {
+            color: #618a5d;
+            font-size: 1rem;
+            white-space: pre-line;
+        }
+
+        .flip-instruction {
+            position: absolute;
+            bottom: 12px;
+            right: 16px;
+            font-size: 0.75rem;
+            color: #42a85c;
+            opacity: 0.7;
+            font-style: italic;
+        }
+
+        .source-line {
+            background: #e6fffa;
+            color: #065f46;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            margin-top: 10px;
+            border-left: 4px solid #10b981;
+            font-weight: 500;
+        }
+
+        .view-mode-toggle {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .mode-btn {
+            padding: 8px 18px;
+            margin: 0 6px;
+            border: 2px solid #2e5704;
+            background: white;
+            color: #2e5704;
+            border-radius: 24px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .mode-btn.active {
+            background: #2e5704;
+            color: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .mode-btn:hover {
+            transform: translateY(-1px);
+            background-color: #edf2f7;
+        }
+
+        .export-section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-top: 30px;
+        }
+
+        .export-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+        }
+
+        .export-btn {
+            padding: 12px 16px;
+            border: 2px solid #2e5704;
+            background: white;
+            color: #2e5704;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .export-btn:hover {
+            background: #2e5704;
+            color: white;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 1.7rem;
+            font-weight: bold;
+            color: #2e5704;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #6cad69;
+        }
+
+        .error-message {
+            display: none;
+            color: #e53e3e;
+            background-color: #fff5f5;
+            border: 1px solid #feb2b2;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 12px 0;
+            text-align: center;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+
+        .flashcard.editing {
+            background: #f0f4ff !important;
+            border: 2px solid #2e5704 !important;
+            box-shadow: 0 4px 16px rgba(102,126,234,0.08);
+        }
+        .edit-btn, .done-btn, .cancel-btn {
+            background: linear-gradient(135deg, #2e5704 0%, #3b6f05 100%);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-left: 8px;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 8px rgba(102,126,234,0.08);
+        }
+        .edit-btn:hover, .done-btn:hover, .cancel-btn:hover {
+            background: linear-gradient(135deg, #3b6f05 0%, #2e5704 100%);
+            box-shadow: 0 3px 12px rgba(102,126,234,0.2);
+        }
+        input[type='text'], select, textarea {
+            border: 1.5px solid #b3e6b7;
+            border-radius: 5px;
+            padding: 6px 10px;
+            font-size: 15px;
+            margin-bottom: 6px;
+            background: #fff;
+            transition: border-color 0.3s;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .section-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 28px;
+            padding: 20px;
+        }
+        .flashcard {
+            min-width: 280px;
+            min-height: 200px;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(102,126,234,0.10);
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            position: relative;
+            overflow: hidden;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        .flashcard:hover {
+            box-shadow: 0 12px 28px rgba(102,126,234,0.18);
+            transform: translateY(-2px) scale(1.01);
+        }
+        .flashcard-header {
+            background: linear-gradient(135deg, #2e5704 0%, #3b6f05 100%);
+            color: #fff;
+            padding: 16px 20px;
+            font-size: 1.1em;
+            font-weight: 700;
+            border-radius: 18px 18px 0 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-radius: 18px 18px 0 0;
+            position: relative;
+            letter-spacing: 0.3px;
+        }
+        .difficulty-badge {
+            background: #38d39f;
+            color: #fff;
+            border-radius: 12px;
+            padding: 4px 14px;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-left: 10px;
+            box-shadow: 0 1px 4px rgba(56,211,159,0.10);
+            text-transform: capitalize;
+        }
+        .edit-btn {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+            z-index: 2;
+            background: #fff;
+            color: #3b6f05;
+            border: 1.5px solid #3b6f05;
+            border-radius: 8px;
+            padding: 5px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s, border 0.2s;
+            box-shadow: 0 2px 8px rgba(102,126,234,0.08);
+        }
+        .edit-btn:hover {
+            background: #3b6f05;
+            color: #fff;
+            border: 1.5px solid #3b6f05;
+        }
+        .flashcard-content {
+            padding: 22px 18px 18px 18px;
+            font-size: 1.13em;
+            color: #222;
+            flex-grow: 1;
+            line-height: 1.6;
+            font-weight: 500;
+            background: #fdfdfd;
+        }
+        .flip-instruction {
+            color: #284904;
+            font-size: 0.98em;
+            text-align: center;
+            margin-top: 18px;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 LLM-Powered Flashcard Generator</h1>
+            <p>Turn notes and documents into smart flashcards instantly - powered by AI, no setup required.</p>
+        </div>
+
+        <div class="main-content">
+            <div class="input-section">
+                <h2 class="section-title">Input Content</h2>
+                <div class="error-message" id="errorMessage"></div>
+                <div class="input-group">
+                    <label for="subject">Subject</label>
+                    <select id="subject" required>
+                        <option value="">Select a subject</option>
+                        <option value="Computer Science">Computer Science</option>
+                        <option value="Mathematics">Mathematics</option>
+                        <option value="Physics">Physics</option>
+                        <option value="Chemistry">Chemistry</option>
+                        <option value="Biology">Biology</option>
+                        <option value="History">History</option>
+                        <option value="Geography">Geography</option>
+                        <option value="Literature">Literature</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="content">Paste Text Content</label>
+                    <textarea id="content" placeholder="Enter your content here..." required></textarea>
+                </div>
+                <div class="input-group">
+                    <label for="file">Or upload a file (PDF or TXT)</label>
+                    <input type="file" id="file" accept=".pdf,.txt">
+                </div>
+                <button class="generate-btn" id="generateBtn" onclick="generateFlashcards()">Generate Flashcards</button>
+                <div class="loading" id="loadingIndicator">
+                    <div class="spinner"></div>
+                    <p>Generating flashcards... This may take a few moments.</p>
+                </div>
+            </div>
+
+            <div class="flashcards-section">
+                <h2 class="section-title">Generated Flashcards</h2>
+                
+                <div class="stats" id="stats" style="display: none;">
+                    <div class="stat-item">
+                        <div class="stat-number" id="totalCards">0</div>
+                        <div class="stat-label">Total Cards</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="easyCards">0</div>
+                        <div class="stat-label">Easy</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="mediumCards">0</div>
+                        <div class="stat-label">Medium</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="hardCards">0</div>
+                        <div class="stat-label">Hard</div>
+                    </div>
+                </div>
+
+                <div class="view-mode-toggle" id="viewModeToggle" style="display: none;">
+                    <button class="mode-btn active" onclick="setViewMode('flip')">Flip Cards</button>
+                    <button class="mode-btn" onclick="setViewMode('list')">List View</button>
+                </div>
+
+                <div class="flashcards-container" id="flashcardsContainer">
+                    <div style="text-align: center; color: #718096; padding: 40px;">
+                        <p>Your generated flashcards will appear here</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="export-section" id="exportSection" style="display: none;">
+            <h2 class="section-title">Export Options</h2>
+            <div class="export-buttons">
+                <button class="export-btn" onclick="exportAsJSON()">Export as JSON</button>
+                <button class="export-btn" onclick="exportAsCSV()">Export as CSV</button>
+                <button class="export-btn" onclick="exportAsAnki()">Export as Anki</button>
+                <button class="export-btn" onclick="exportAsTXT()">Export as TXT</button>
+            </div>
+            <div id="languageSelectSection">
+                <label for="languageSelect" style="font-weight:600;">Translate Flashcards To:</label>
+                <select id="languageSelect" style="margin: 0 10px;">
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="hi">Hindi</option>
+                    <option value="zh-CN">Chinese (Simplified)</option>
+                    <option value="ar">Arabic</option>
+                    <option value="ru">Russian</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="ja">Japanese</option>
+                </select>
+                <button id="translateBtn">Translate</button>
+                <span id="translateStatus" style="margin-left:10px;color:#2e5704;"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let flashcards = [];
+        let viewMode = 'flip';
+        let originalContent = '';
+        let contentForSearch = '';
+        
+        const generateBtn = document.getElementById('generateBtn');
+        const loadingDiv = document.getElementById('loadingIndicator');
+        const errorMessageDiv = document.getElementById('errorMessage');
+        const flashcardsContainer = document.getElementById('flashcardsContainer');
+        const contentInput = document.getElementById('content');
+        const subjectCategory = document.getElementById('subject');
+        const editModal = document.getElementById('editModal');
+        const saveEditBtn = document.getElementById('saveEditBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const editQuestion = document.getElementById('editQuestion');
+        const editAnswer = document.getElementById('editAnswer');
+        const editTopic = document.getElementById('editTopic');
+        const editDifficulty = document.getElementById('editDifficulty');
+        const translateModal = document.getElementById('translateModal');
+        const translateTextContent = document.getElementById('translateTextContent');
+        const translateLanguage = document.getElementById('translateLanguage');
+        const performTranslateBtn = document.getElementById('performTranslateBtn');
+        const cancelTranslateBtn = document.getElementById('cancelTranslateBtn');
+        const translatedOutput = document.getElementById('translatedOutput');
+        const fileUpload = document.getElementById('file');
+
+        let currentEditingFlashcard = null;
+        let originalFlashcards = [];
+
+        function showLoading() {
+            loadingDiv.classList.add('active');
+            generateBtn.disabled = true;
+            errorMessageDiv.classList.remove('active');
+        }
+
+        function hideLoading() {
+            loadingDiv.classList.remove('active');
+            generateBtn.disabled = false;
+        }
+
+        async function generateFlashcards() {
+            const subject = document.getElementById('subject').value;
+            const content = document.getElementById('content').value;
+            const file = document.getElementById('file').files[0];
+
+            if (!subject) {
+                showError('Please select a subject');
+                return;
+            }
+
+            if (!content && !file) {
+                showError('Please enter content or upload a file');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                const formData = new FormData();
+                formData.append('subject', subject);
+                
+                if (file) {
+                    formData.append('file', file);
+                } else {
+                    formData.append('content', content);
+                }
+
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to generate flashcards');
+                }
+
+                flashcards = data.flashcards.map((card, index) => ({...card, id: index + 1}));
+                
+                contentForSearch = data.content;
+                console.log('Content for search after generation:', contentForSearch);
+
+                displayFlashcards(flashcards);
+                document.getElementById('errorMessage').classList.remove('active');
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function displayFlashcards(flashcards) {
+            const container = document.getElementById('flashcardsContainer');
+            const viewModeToggle = document.getElementById('viewModeToggle');
+            
+            if (!flashcards || flashcards.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #718096; padding: 40px;"><p>No flashcards generated</p></div>';
+                viewModeToggle.style.display = 'none';
+                return;
+            }
+            
+            viewModeToggle.style.display = 'block';
+
+            const sectionGroups = {};
+            flashcards.forEach(card => {
+                const section = card.section || 'General';
+                if (!sectionGroups[section]) sectionGroups[section] = [];
+                sectionGroups[section].push(card);
+            });
+            const sectionOrder = Object.keys(sectionGroups);
+
+            if (viewMode === 'flip') {
+                container.innerHTML = sectionOrder.map(section => `
+                    <div class="section-group">
+                        <div class="section-header" style="background:#e9e9fa;padding:8px 18px;border-radius:8px;margin:18px 0 10px 0;font-weight:700;font-size:1.1em;color:#4a5568;">
+                            ${section}
+                        </div>
+                        <div class="section-cards">
+                            ${sectionGroups[section].map((card, index) => `
+                                <div class="flashcard" data-card-id="${card.id}" onclick="flipCard(this)">
+                                    <div class="flashcard-inner">
+                                        <div class="flashcard-front">
+                                            <div class="flashcard-header">
+                                                <span>Card ${card.id} - ${card.topic || 'No topic'}</span>
+                                                <span class="difficulty-badge difficulty-${(card.difficulty||'').toLowerCase()}">${card.difficulty || ''}</span>
+                                            </div>
+                                            <div class="flashcard-content">
+                                                <div class="question">${card.question || '<em>No question</em>'}</div>
+                                            </div>
+                                            <div class="flip-instruction">Click to reveal answer</div>
+                                        </div>
+                                        <div class="flashcard-back">
+                                            <div class="flashcard-header">
+                                                <span>Answer - ${card.topic || 'No topic'}</span>
+                                                <span class="difficulty-badge difficulty-${(card.difficulty||'').toLowerCase()}">${card.difficulty || ''}</span>
+                                            </div>
+                                            <div class="flashcard-content">
+                                                <div class="answer">${card.answer || '<em>No answer</em>'}</div>
+                                            </div>
+                                            <div class="flip-instruction">Click to see question</div>
+                                            <div style="margin-top: 10px; text-align: right;">
+                                                <button class="edit-btn" onclick="event.stopPropagation(); openEditModal(${card.id});">Edit</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = sectionOrder.map(section => `
+                    <div class="section-group">
+                        <div class="section-header" style="background:#e9e9fa;padding:8px 18px;border-radius:8px;margin:18px 0 10px 0;font-weight:700;font-size:1.1em;color:#4a5568;">
+                            ${section}
+                        </div>
+                        <div class="section-cards">
+                            ${sectionGroups[section].map(card => `
+                                <div class="flashcard" style="height: auto; cursor: default;">
+                                    <div class="flashcard-header">
+                                        <span>Card ${card.id} - ${card.topic || 'No topic'}</span>
+                                        <span class="difficulty-badge difficulty-${(card.difficulty||'').toLowerCase()}">${card.difficulty || ''}</span>
+                                    </div>
+                                    <div class="flashcard-content" style="text-align: left;">
+                                        <div class="question" style="margin-bottom: 15px;">Q: ${card.question || '<em>No question</em>'}</div>
+                                        <div class="answer" style="margin-bottom: 10px;">A: ${card.answer || '<em>No answer</em>'}</div>
+                                    </div>
+                                    <div style="margin-top: 10px; text-align: right;">
+                                        <button class="edit-btn" onclick="openEditModal(${card.id});">Edit</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            updateStats();
+            showExportSection();
+        }
+
+        function flipCard(cardElement) {
+            if (viewMode !== 'flip') return;
+            cardElement.classList.toggle('flipped');
+        }
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            
+            const buttons = document.querySelectorAll('.mode-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            displayFlashcards(flashcards);
+        }
+
+        function updateStats() {
+            if (!flashcards || flashcards.length === 0) {
+                document.getElementById('stats').style.display = 'none';
+                return;
+            }
+
+            const total = flashcards.length;
+            const easy = flashcards.filter(card => card.difficulty === 'Easy').length;
+            const medium = flashcards.filter(card => card.difficulty === 'Medium').length;
+            const hard = flashcards.filter(card => card.difficulty === 'Hard').length;
+            
+            document.getElementById('totalCards').textContent = total;
+            document.getElementById('easyCards').textContent = easy;
+            document.getElementById('mediumCards').textContent = medium;
+            document.getElementById('hardCards').textContent = hard;
+            document.getElementById('stats').style.display = 'flex';
+        }
+
+        function showExportSection() {
+            document.getElementById('exportSection').style.display = 'block';
+            addLanguageSelector();
+        }
+
+        function showError(message) {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = message;
+            errorElement.classList.add('active');
+        }
+
+        function exportAsJSON() {
+            const data = JSON.stringify(flashcards, null, 2);
+            downloadFile(data, 'flashcards.json', 'application/json');
+        }
+
+        function exportAsCSV() {
+            const headers = ['ID', 'Question', 'Answer', 'Difficulty', 'Topic'];
+            const csvContent = [
+                headers.join(','),
+                ...flashcards.map(card => [
+                    card.id,
+                    `"${card.question.replace(/"/g, '""')}"`,
+                    `"${card.answer.replace(/"/g, '""')}"`,
+                    card.difficulty,
+                    `"${card.topic.replace(/"/g, '""')}"`
+                ].join(','))
+            ].join('\n');
+            
+            downloadFile(csvContent, 'flashcards.csv', 'text/csv');
+        }
+
+        function exportAsAnki() {
+            const ankiContent = flashcards.map(card => 
+                `${card.question}\t${card.answer}\t${card.topic}`
+            ).join('\n');
+            
+            downloadFile(ankiContent, 'flashcards_anki.txt', 'text/plain');
+        }
+
+        function exportAsTXT() {
+            const txtContent = flashcards.map(card => 
+                `Card ${card.id} [${card.difficulty}] - ${card.topic}\nQ: ${card.question}\nA: ${card.answer}\n\n`
+            ).join('');
+            
+            downloadFile(txtContent, 'flashcards.txt', 'text/plain');
+        }
+
+        function downloadFile(content, filename, contentType) {
+            const blob = new Blob([content], { type: contentType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function loadDemoContent() {
+            document.getElementById('content').value = `
+Photosynthesis is the process by which plants convert light energy into chemical energy. This process occurs in the chloroplasts of plant cells, specifically in structures called thylakoids. The overall equation for photosynthesis is: 6CO2 + 6H2O + light energy → C6H12O6 + 6O2.
+
+The process consists of two main stages: the light-dependent reactions and the light-independent reactions (Calvin cycle). In the light-dependent reactions, chlorophyll absorbs light energy and converts it into ATP and NADPH. These reactions also produce oxygen as a byproduct.
+
+The Calvin cycle uses the ATP and NADPH produced in the light reactions to convert carbon dioxide into glucose. This process does not directly require light but depends on the products of the light reactions.
+
+Factors affecting photosynthesis include light intensity, carbon dioxide concentration, temperature, and water availability. Understanding photosynthesis is crucial for comprehending how energy flows through ecosystems.
+            `;
+            originalContent = document.getElementById('content').value;
+            document.getElementById('subject').value = 'Computer Science';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const demoBtn = document.createElement('button');
+            demoBtn.textContent = '📖 Load Demo Content';
+            demoBtn.className = 'export-btn';
+            demoBtn.style.marginTop = '10px';
+            demoBtn.onclick = loadDemoContent;
+            document.querySelector('.input-section').appendChild(demoBtn);
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const modelSelect = document.getElementById('modelSelect');
+            if (modelSelect) {
+                modelSelect.innerHTML = '<option value="gemini">🤖 Google Gemini</option>';
+            }
+        });
+
+        function openEditModal(cardId) {
+            const card = flashcards.find(c => c.id === cardId);
+            const modal = document.getElementById('editModal');
+            const modalCard = document.getElementById('editModalCard');
+            modalCard.innerHTML = `
+                <div class="flashcard-header">
+                    <span>Edit Card ${card.id} - <input type='text' value="${card.topic}" id="edit-topic-modal" style="width: 150px;" /></span>
+                    <select id="edit-difficulty-modal">
+                        <option value="Easy" ${card.difficulty === 'Easy' ? 'selected' : ''}>Easy</option>
+                        <option value="Medium" ${card.difficulty === 'Medium' ? 'selected' : ''}>Medium</option>
+                        <option value="Hard" ${card.difficulty === 'Hard' ? 'selected' : ''}>Hard</option>
+                    </select>
+                </div>
+                <div class="flashcard-content">
+                    <div class="question"><textarea id="edit-question-modal" style="width: 100%; min-height: 40px;">${card.question}</textarea></div>
+                    <div class="answer"><textarea id="edit-answer-modal" style="width: 100%; min-height: 40px;">${card.answer}</textarea></div>
+                </div>
+                <div style="margin-top: 10px; text-align: right;">
+                    <button class="done-btn" onclick="saveEditModal(${card.id})">Done</button>
+                    <button class="cancel-btn" onclick="closeEditModal()">Cancel</button>
+                </div>
+            `;
+            modal.classList.add('show');
+            modal.style.display = 'flex';
+            setTimeout(() => { modal.classList.remove('hide'); }, 10);
+            document.getElementById('editModalOverlay').onclick = closeEditModal;
+        }
+
+        function closeEditModal() {
+            const modal = document.getElementById('editModal');
+            modal.classList.add('hide');
+            setTimeout(() => { modal.style.display = 'none'; modal.classList.remove('show'); }, 250);
+        }
+
+        function saveEditModal(cardId) {
+            const question = document.getElementById('edit-question-modal').value;
+            const answer = document.getElementById('edit-answer-modal').value;
+            const difficulty = document.getElementById('edit-difficulty-modal').value;
+            const topic = document.getElementById('edit-topic-modal').value;
+            flashcards = flashcards.map(card => card.id === cardId ? {
+                ...card,
+                question,
+                answer,
+                difficulty,
+                topic
+            } : card);
+            closeEditModal();
+            displayFlashcards(flashcards);
+        }
+
+        function bindTranslateButton() {
+            const translateBtn = document.getElementById('translateBtn');
+            if (translateBtn) {
+                translateBtn.onclick = translateAllFlashcards;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            bindTranslateButton();
+        });
+
+        function addLanguageSelector() {
+            const exportSection = document.getElementById('exportSection');
+            if (!document.getElementById('languageSelect')) {
+                const langDiv = document.createElement('div');
+                langDiv.style.margin = '20px 0';
+                langDiv.innerHTML = `
+                    <label for="languageSelect" style="font-weight:600;">🌐 Translate Flashcards To:</label>
+                    <select id="languageSelect" style="margin: 0 10px;">
+                        <option value="en">English</option>
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="hi">Hindi</option>
+                        <option value="zh-CN">Chinese (Simplified)</option>
+                        <option value="ar">Arabic</option>
+                        <option value="ru">Russian</option>
+                        <option value="pt">Portuguese</option>
+                        <option value="ja">Japanese</option>
+                    </select>
+                    <button id="translateBtn">Translate</button>
+                    <span id="translateStatus" style="margin-left:10px;color:#667eea;"></span>
+                `;
+                exportSection.insertBefore(langDiv, exportSection.firstChild);
+                bindTranslateButton();
+            }
+        }
+
+        async function translateAllFlashcards() {
+            console.log('Translate button clicked');
+            const lang = document.getElementById('languageSelect').value;
+            const translateBtn = document.getElementById('translateBtn');
+            const statusEl = document.getElementById('translateStatus');
+            translateBtn.disabled = true;
+            statusEl.textContent = 'Translating...';
+            statusEl.style.color = '#667eea';
+            let success = true;
+            for (let i = 0; i < flashcards.length; i++) {
+                try {
+                    flashcards[i].question = await translateText(flashcards[i].question, lang);
+                    flashcards[i].answer = await translateText(flashcards[i].answer, lang);
+                    flashcards[i].topic = await translateText(flashcards[i].topic, lang);
+                } catch (e) {
+                    success = false;
+                    break;
+                }
+            }
+            if (success) {
+                statusEl.textContent = 'Translation complete!';
+                statusEl.style.color = '#38d39f';
+                displayFlashcards(flashcards);
+            } else {
+                statusEl.textContent = 'Translation failed. Please try again later.';
+                statusEl.style.color = '#e53e3e';
+            }
+            translateBtn.disabled = false;
+        }
+
+        async function translateText(text, targetLang) {
+            if (!text) return '';
+            try {
+                const res = await fetch('/api/translate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, targetLang })
+                });
+                if (!res.ok) throw new Error('Backend translation error');
+                const data = await res.json();
+                if (data.translated) {
+                    return data.translated;
+                } else {
+                    throw new Error(data.error || 'No translation');
+                }
+            } catch (e) {
+                return text;
+            }
+        }
+
+        function addQuestionSearchBar() {
+            const inputSection = document.querySelector('.input-section');
+            if (!document.getElementById('questionSearchBar')) {
+                const searchDiv = document.createElement('div');
+                searchDiv.id = 'questionSearchBar';
+                searchDiv.style.marginBottom = '22px';
+                searchDiv.innerHTML = `
+                    <label for="searchQuestionInput" style="font-weight:600;">🔍 Search for an answer in your content:</label>
+                    <div style="display:flex;gap:10px;margin-top:8px;">
+                        <input id="searchQuestionInput" type="text" placeholder="Type your question..." style="flex:1;padding:10px 12px;font-size:1em;border-radius:7px;border:1.5px solid #b3b3e6;" />
+                        <button id="searchQuestionBtn" style="padding:10px 22px;font-size:1em;border-radius:7px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;font-weight:600;border:none;cursor:pointer;">Search Answer</button>
+                    </div>
+                    <div id="searchAnswerCard" style="margin-top:18px;"></div>
+                `;
+                inputSection.insertBefore(searchDiv, inputSection.firstChild);
+                document.getElementById('searchQuestionBtn').onclick = searchAnswerFromContent;
+            }
+        }
+        addQuestionSearchBar();
+
+        async function searchAnswerFromContent() {
+            const question = document.getElementById('searchQuestionInput').value.trim();
+            const content = contentForSearch.trim();
+            console.log('Content for search before sending to backend:', content);
+            const answerCard = document.getElementById('searchAnswerCard');
+            answerCard.innerHTML = '';
+            if (!question) {
+                answerCard.innerHTML = '<div style="color:#e53e3e;font-weight:600;">Please enter a question.</div>';
+                return;
+            }
+            if (!content && flashcards.length === 0) {
+                answerCard.innerHTML = '<div style="color:#e53e3e;font-weight:600;">Please provide content or generate flashcards to search in.</div>';
+                return;
+            }
+            answerCard.innerHTML = '<div style="color:#667eea;">Searching for answer...</div>';
+            try {
+                const res = await fetch('/api/search-answer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question, content, flashcards: flashcards })
+                });
+                const data = await res.json();
+                if (res.ok && data.answer) {
+                    answerCard.innerHTML = `<div style="background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(102,126,234,0.08);padding:22px 18px 18px 18px;margin-top:0;">
+                        <div style="font-weight:700;font-size:1.08em;color:#764ba2;margin-bottom:8px;">Answer</div>
+                        <div style="font-size:1.13em;color:#222;">${data.answer}</div>
+                    </div>`;
+                } else {
+                    answerCard.innerHTML = `<div style="color:#e53e3e;font-weight:600;">${data.error || 'No answer found.'}</div>`;
+                }
+            } catch (e) {
+                answerCard.innerHTML = '<div style="color:#e53e3e;font-weight:600;">Error searching for answer.</div>';
+            }
+        }
+    </script>
+
+    <div id="editModal" style="display: none;">
+        <div id="editModalOverlay"></div>
+        <div id="editModalContent">
+            <div class="flashcard editing" id="editModalCard"></div>
+        </div>
+    </div>
+
+    <style>
+        #editModal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.35);
+            transition: background 0.3s;
+        }
+        #editModalOverlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 1;
+        }
+        #editModalContent {
+            position: relative;
+            z-index: 2;
+            animation: modalPopIn 0.35s cubic-bezier(.4,2,.6,1) forwards;
+            transform: scale(0.95);
+            opacity: 0;
+        }
+        #editModal.show #editModalContent {
+            animation: modalPopIn 0.35s cubic-bezier(.4,2,.6,1) forwards;
+        }
+        @keyframes modalPopIn {
+            0% { transform: scale(0.95); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        #editModal.hide #editModalContent {
+            animation: modalPopOut 0.25s cubic-bezier(.4,2,.6,1) forwards;
+        }
+        @keyframes modalPopOut {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0; }
+        }
+    </style>
+</body>
+</html>
